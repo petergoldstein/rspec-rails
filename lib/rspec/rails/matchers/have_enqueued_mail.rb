@@ -91,7 +91,7 @@ module RSpec
 
         def process_arguments(job, given_mail_args)
           # Old matcher behavior working with all builtin classes but ActionMailer::MailDeliveryJob
-          return given_mail_args unless defined?(ActionMailer::MailDeliveryJob) && job[:job] <= ActionMailer::MailDeliveryJob
+          return given_mail_args if use_given_mail_args?(job)
 
           # If matching args starts with a hash and job instance has params match with them
           if given_mail_args.first.is_a?(Hash) && job[:args][3]['params'].present?
@@ -99,6 +99,20 @@ module RSpec
           else
             [hash_including(args: given_mail_args)]
           end
+        end
+
+        def use_given_mail_args?(job)
+          return true if defined?(ActionMailer::Parameterized::DeliveryJob) && job[:job] <= ActionMailer::Parameterized::DeliveryJob
+          return false if rails_6_1_and_ruby_3_1?
+
+          !(defined?(ActionMailer::MailDeliveryJob) && job[:job] <= ActionMailer::MailDeliveryJob)
+        end
+
+        def rails_6_1_and_ruby_3_1?
+          return false unless RUBY_VERSION >= "3.1"
+          return false unless ::Rails::VERSION::STRING >= '6.1'
+
+          ::Rails::VERSION::STRING < '7'
         end
 
         def base_mailer_args
@@ -143,11 +157,18 @@ module RSpec
           mailer_args = deserialize_arguments(job)[3..-1]
           mailer_args = mailer_args.first[:args] if unified_mail?(job)
           msg_parts = []
-          msg_parts << "with #{mailer_args}" if mailer_args.any?
+          display_args = display_mailer_args(mailer_args)
+          msg_parts << "with #{display_args}" if display_args.any?
           msg_parts << "on queue #{job[:queue]}" if job[:queue] && job[:queue] != 'mailers'
           msg_parts << "at #{Time.at(job[:at])}" if job[:at]
 
           "#{mailer_method} #{msg_parts.join(', ')}".strip
+        end
+
+        def display_mailer_args(mailer_args)
+          return mailer_args unless mailer_args.first.is_a?(Hash) && mailer_args.first.key?(:args)
+
+          mailer_args.first[:args]
         end
 
         def legacy_mail?(job)
