@@ -25,4 +25,10 @@ else
   gem "puma"
   gem 'activerecord-jdbcsqlite3-adapter', platforms: [:jruby]
   gem 'selenium-webdriver', require: false
+
+  if RUBY_VERSION >= '3.1' && version < '7.0'
+    gem 'net-smtp', require: false
+    gem 'net-imap', require: false
+    gem 'net-pop', require: false
+  end
 end
